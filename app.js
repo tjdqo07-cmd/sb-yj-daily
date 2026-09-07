@@ -47,6 +47,50 @@ const FATIGUE_TIPS = [
   },
 ];
 
+const FOOD_TAGS = [
+  "한식",
+  "중식",
+  "양식",
+  "일식",
+  "분식",
+  "치킨",
+  "고기",
+  "해산물",
+  "디저트",
+  "맥주",
+  "소주",
+  "와인",
+  "칵테일",
+  "위스키",
+  "논알콜",
+  "금주",
+];
+
+const WISH_TAGS = [
+  "영화보기",
+  "외박하기",
+  "멀리 놀러가기",
+  "카페",
+  "맛집탐방",
+  "산책",
+  "홈데이트",
+  "쇼핑",
+  "전시·공연",
+  "운동같이",
+  "드라이브",
+  "술 한잔",
+];
+
+const CLOSENESS_COPY = {
+  0: "월요일 — 아직 주초예요. 서로 향해 천천히 걸어가요.",
+  1: "화요일 — 한 걸음 더. 주말이 살짝 보이기 시작해요.",
+  2: "수요일 — 절반을 지났어요. 마음이 조금 더 가까워져요.",
+  3: "목요일 — 거의 다 왔어요. 설렘이 차오르는 날.",
+  4: "금요일 — 내일은 토요일! 둘의 거리가 많이 줄어들었어요.",
+  5: "토요일 — 만났어요. 오늘만큼은 더 러블리하게.",
+  6: "일요일 — 이번 주도 고생했어요. 다음 토요일을 향해 다시 출발해요.",
+};
+
 const TIME_OPTIONS = buildTimeOptions();
 
 const cloudEnabled =
@@ -63,6 +107,8 @@ let state = loadLocalState();
 let saveTimer = null;
 let pendingFatigue = 5;
 let fatigueEditing = true;
+let weeklyDirty = false;
+let pendingWeekly = emptyWeeklyDraft();
 
 const els = {
   weekTitle: document.getElementById("week-title"),
@@ -88,7 +134,23 @@ const els = {
   fatigueSave: document.getElementById("fatigue-save"),
   fatigueEdit: document.getElementById("fatigue-edit"),
   fatiguePartner: document.getElementById("fatigue-partner"),
+  foodTags: document.getElementById("food-tags"),
+  wishTags: document.getElementById("wish-tags"),
+  foodNote: document.getElementById("food-note"),
+  wishNote: document.getElementById("wish-note"),
+  weeklySave: document.getElementById("weekly-save"),
+  weeklyPartner: document.getElementById("weekly-partner"),
+  closenessCaption: document.getElementById("closeness-caption"),
+  closenessFill: document.getElementById("closeness-fill"),
+  closenessSb: document.getElementById("closeness-sb"),
+  closenessYj: document.getElementById("closeness-yj"),
+  closenessHeart: document.getElementById("closeness-heart"),
+  closenessTrack: document.getElementById("closeness-track"),
 };
+
+function emptyWeeklyDraft() {
+  return { foodNote: "", foodTags: [], wishNote: "", wishTags: [] };
+}
 
 function buildTimeOptions() {
   const options = [];
@@ -104,15 +166,16 @@ function buildTimeOptions() {
 function loadLocalState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { attendance: {}, workouts: [], fatigue: {} };
+    if (!raw) return { attendance: {}, workouts: [], fatigue: {}, weekly: {} };
     const parsed = JSON.parse(raw);
     return {
       attendance: parsed.attendance || {},
       workouts: Array.isArray(parsed.workouts) ? parsed.workouts : [],
       fatigue: parsed.fatigue || {},
+      weekly: parsed.weekly || {},
     };
   } catch {
-    return { attendance: {}, workouts: [], fatigue: {} };
+    return { attendance: {}, workouts: [], fatigue: {}, weekly: {} };
   }
 }
 
@@ -181,6 +244,33 @@ function getAttendance(userId, date) {
 
 function getFatigue(userId, date) {
   return state.fatigue[fatigueId(userId, date)] || null;
+}
+
+function weekStartKey() {
+  return formatDate(getWeekDates()[0]);
+}
+
+function weeklyId(userId, weekStart) {
+  return `${userId}_${weekStart}`;
+}
+
+function getWeekly(userId, weekStart = weekStartKey()) {
+  return state.weekly[weeklyId(userId, weekStart)] || null;
+}
+
+function draftFromWeekly(record) {
+  if (!record) return emptyWeeklyDraft();
+  return {
+    foodNote: record.foodNote || "",
+    foodTags: [...(record.foodTags || [])],
+    wishNote: record.wishNote || "",
+    wishTags: [...(record.wishTags || [])],
+  };
+}
+
+function loadPendingWeeklyFromState() {
+  if (weeklyDirty) return;
+  pendingWeekly = draftFromWeekly(getWeekly(activeUser));
 }
 
 function getFatigueTip(level) {
@@ -252,17 +342,19 @@ async function refreshFromCloud() {
   const to = formatDate(weekDates[6]);
   const today = formatDate(new Date());
 
-  const [attRes, workRes, fatRes] = await Promise.all([
+  const [attRes, workRes, fatRes, weekRes] = await Promise.all([
     supabase.from("attendance").select("*").gte("date", from).lte("date", to),
     supabase.from("workouts").select("*").gte("date", from).lte("date", to).order("created_at", {
       ascending: false,
     }),
     supabase.from("fatigue").select("*").eq("date", today),
+    supabase.from("weekly_wishes").select("*").eq("week_start", from),
   ]);
 
   if (attRes.error) throw attRes.error;
   if (workRes.error) throw workRes.error;
   if (fatRes.error) console.warn("fatigue sync skipped:", fatRes.error.message);
+  if (weekRes.error) console.warn("weekly_wishes sync skipped:", weekRes.error.message);
 
   for (const row of attRes.data || []) {
     state.attendance[row.id] = {
@@ -295,6 +387,19 @@ async function refreshFromCloud() {
       userId: row.user_id,
       date: row.date,
       level: row.level,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  for (const row of weekRes.data || []) {
+    state.weekly[row.id] = {
+      id: row.id,
+      userId: row.user_id,
+      weekStart: row.week_start,
+      foodNote: row.food_note || "",
+      foodTags: row.food_tags || [],
+      wishNote: row.wish_note || "",
+      wishTags: row.wish_tags || [],
       updatedAt: row.updated_at,
     };
   }
@@ -390,6 +495,30 @@ function subscribeRealtime() {
         renderFatigue();
       }
     )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "weekly_wishes" },
+      (payload) => {
+        if (payload.eventType === "DELETE") {
+          delete state.weekly[payload.old.id];
+        } else {
+          const row = payload.new;
+          state.weekly[row.id] = {
+            id: row.id,
+            userId: row.user_id,
+            weekStart: row.week_start,
+            foodNote: row.food_note || "",
+            foodTags: row.food_tags || [],
+            wishNote: row.wish_note || "",
+            wishTags: row.wish_tags || [],
+            updatedAt: row.updated_at,
+          };
+        }
+        persistLocal();
+        if (!weeklyDirty) renderWeeklyWish();
+        else renderWeeklyPartnerOnly();
+      }
+    )
     .subscribe();
 }
 
@@ -429,6 +558,32 @@ async function upsertFatigue(record) {
     user_id: record.userId,
     date: record.date,
     level: record.level,
+    updated_at: record.updatedAt,
+  });
+  if (error) {
+    console.error(error);
+    setSyncStatus("error", "저장 실패 · 로컬에만 반영");
+  } else {
+    setSyncStatus("cloud", "클라우드 동기화 중");
+  }
+}
+
+async function upsertWeekly(record) {
+  state.weekly[record.id] = record;
+  persistLocal();
+  weeklyDirty = false;
+  renderWeeklyWish();
+
+  if (!supabase) return;
+  setSyncStatus("syncing", "저장 중…");
+  const { error } = await supabase.from("weekly_wishes").upsert({
+    id: record.id,
+    user_id: record.userId,
+    week_start: record.weekStart,
+    food_note: record.foodNote,
+    food_tags: record.foodTags,
+    wish_note: record.wishNote,
+    wish_tags: record.wishTags,
     updated_at: record.updatedAt,
   });
   if (error) {
@@ -694,10 +849,98 @@ function render() {
   const weekDates = getWeekDates();
   renderWho();
   renderWeekTitle(weekDates);
+  renderCloseness();
   renderFatigue();
+  renderWeeklyWish();
   renderAttendance(weekDates);
   renderWorkouts(weekDates);
   renderSummary(weekDates);
+}
+
+function renderCloseness() {
+  if (!els.closenessFill) return;
+  // Use real today when viewing current week; otherwise mid-week feel for past/future weeks
+  const today = new Date();
+  const dow = today.getDay(); // 0 Sun … 6 Sat
+  let step;
+  if (weekOffset === 0) {
+    step = dow === 0 ? 6 : dow - 1; // Mon=0 … Sat=5, Sun=6
+  } else if (weekOffset < 0) {
+    step = 6;
+  } else {
+    step = 0;
+  }
+
+  const progress = Math.min(1, step / 5); // Mon→Sat
+  const left = 8 + progress * 38;
+  const right = 92 - progress * 38;
+  els.closenessFill.style.width = `${Math.max(8, progress * 100)}%`;
+  els.closenessSb.style.left = `${left}%`;
+  els.closenessYj.style.left = `${right}%`;
+  els.closenessHeart.style.opacity = String(0.25 + progress * 0.75);
+  els.closenessHeart.style.transform = `translate(-50%, -50%) scale(${0.85 + progress * 0.45})`;
+  els.closenessTrack.dataset.step = String(step);
+  els.closenessCaption.textContent = CLOSENESS_COPY[step] || CLOSENESS_COPY[0];
+}
+
+function renderChipRow(container, allTags, selected, dataAttr) {
+  container.innerHTML = allTags
+    .map((tag) => {
+      const on = selected.includes(tag);
+      return `<button type="button" class="chip ${on ? "is-on" : ""}" data-${dataAttr}="${escapeHtml(
+        tag
+      )}" aria-pressed="${on}">${escapeHtml(tag)}</button>`;
+    })
+    .join("");
+}
+
+function renderWeeklyPartnerOnly() {
+  const partner = partnerId(activeUser);
+  const theirs = getWeekly(partner);
+  if (theirs && (theirs.foodNote || theirs.foodTags.length || theirs.wishNote || theirs.wishTags.length)) {
+    els.weeklyPartner.innerHTML = `
+      <div class="weekly-partner-card">
+        <strong>${USERS[partner].name}의 이번 주</strong>
+        <p><span>먹고싶은것</span> ${(theirs.foodTags || []).map(escapeHtml).join(" · ") || "—"}
+          ${theirs.foodNote ? ` · ${escapeHtml(theirs.foodNote)}` : ""}</p>
+        <p><span>하고싶은것</span> ${(theirs.wishTags || []).map(escapeHtml).join(" · ") || "—"}
+          ${theirs.wishNote ? ` · ${escapeHtml(theirs.wishNote)}` : ""}</p>
+      </div>`;
+  } else {
+    els.weeklyPartner.innerHTML = `<p class="fatigue-partner-empty">${USERS[partner].name}의 이번 주 마음은 아직 없어요.</p>`;
+  }
+}
+
+function renderWeeklyWish() {
+  loadPendingWeeklyFromState();
+  renderChipRow(els.foodTags, FOOD_TAGS, pendingWeekly.foodTags, "food-tag");
+  renderChipRow(els.wishTags, WISH_TAGS, pendingWeekly.wishTags, "wish-tag");
+  if (document.activeElement !== els.foodNote) els.foodNote.value = pendingWeekly.foodNote;
+  if (document.activeElement !== els.wishNote) els.wishNote.value = pendingWeekly.wishNote;
+  renderWeeklyPartnerOnly();
+}
+
+async function saveWeeklyWish() {
+  const weekStart = weekStartKey();
+  const id = weeklyId(activeUser, weekStart);
+  pendingWeekly.foodNote = els.foodNote.value.trim();
+  pendingWeekly.wishNote = els.wishNote.value.trim();
+  await upsertWeekly({
+    id,
+    userId: activeUser,
+    weekStart,
+    foodNote: pendingWeekly.foodNote,
+    foodTags: [...pendingWeekly.foodTags],
+    wishNote: pendingWeekly.wishNote,
+    wishTags: [...pendingWeekly.wishTags],
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function toggleTag(list, tag) {
+  const i = list.indexOf(tag);
+  if (i >= 0) list.splice(i, 1);
+  else list.push(tag);
 }
 
 async function handleTimeChange(date, field, value) {
@@ -770,22 +1013,26 @@ function bindEvents() {
       const mine = getFatigue(activeUser, today);
       pendingFatigue = mine?.level ?? 5;
       fatigueEditing = !mine;
+      weeklyDirty = false;
       render();
     });
   });
 
   document.getElementById("prev-week").addEventListener("click", () => {
     weekOffset -= 1;
+    weeklyDirty = false;
     render();
     queueCloudRefresh();
   });
   document.getElementById("next-week").addEventListener("click", () => {
     weekOffset += 1;
+    weeklyDirty = false;
     render();
     queueCloudRefresh();
   });
   document.getElementById("this-week").addEventListener("click", () => {
     weekOffset = 0;
+    weeklyDirty = false;
     render();
     queueCloudRefresh();
   });
@@ -842,6 +1089,36 @@ function bindEvents() {
     pendingFatigue = mine?.level ?? 5;
     fatigueEditing = true;
     renderFatigue();
+  });
+
+  els.foodTags.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-food-tag]");
+    if (!btn) return;
+    weeklyDirty = true;
+    toggleTag(pendingWeekly.foodTags, btn.dataset.foodTag);
+    renderChipRow(els.foodTags, FOOD_TAGS, pendingWeekly.foodTags, "food-tag");
+  });
+
+  els.wishTags.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-wish-tag]");
+    if (!btn) return;
+    weeklyDirty = true;
+    toggleTag(pendingWeekly.wishTags, btn.dataset.wishTag);
+    renderChipRow(els.wishTags, WISH_TAGS, pendingWeekly.wishTags, "wish-tag");
+  });
+
+  els.foodNote.addEventListener("input", () => {
+    weeklyDirty = true;
+    pendingWeekly.foodNote = els.foodNote.value;
+  });
+
+  els.wishNote.addEventListener("input", () => {
+    weeklyDirty = true;
+    pendingWeekly.wishNote = els.wishNote.value;
+  });
+
+  els.weeklySave.addEventListener("click", () => {
+    saveWeeklyWish();
   });
 }
 

@@ -70,10 +70,28 @@
             <button type="button" class="ghost-btn" id="prev-week" aria-label="이전 주">
               ← 이전
             </button>
-            <button type="button" class="ghost-btn" id="this-week">오늘 주로</button>
+            <button type="button" class="ghost-btn" id="this-week">이번 주로</button>
             <button type="button" class="ghost-btn" id="next-week" aria-label="다음 주">
               다음 →
             </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel closeness-panel" id="closeness-panel" aria-live="polite">
+        <div class="panel-head compact">
+          <h2>토요일로 향하는 우리</h2>
+          <p id="closeness-caption">주말이 다가올수록 조금씩 더 가까워져요.</p>
+        </div>
+        <div class="closeness-track" id="closeness-track">
+          <div class="closeness-rail">
+            <span class="closeness-fill" id="closeness-fill"></span>
+            <span class="closeness-dot sb" id="closeness-sb">SB</span>
+            <span class="closeness-dot yj" id="closeness-yj">YJ</span>
+            <span class="closeness-heart" id="closeness-heart" aria-hidden="true">♥</span>
+          </div>
+          <div class="closeness-days" aria-hidden="true">
+            <span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
           </div>
         </div>
       </section>
@@ -99,6 +117,44 @@
         </div>
 
         <div class="fatigue-partner" id="fatigue-partner"></div>
+      </section>
+
+      <section class="panel weekly-wish-panel" id="weekly-wish-panel">
+        <div class="panel-head">
+          <h2>이번 주 마음</h2>
+          <p>먹고 싶은 것 · 하고 싶은 것을 주간으로 남겨요. 상대 기록도 같이 보여요.</p>
+        </div>
+
+        <div class="wish-block">
+          <h3>지금 생각나는 먹고싶은것</h3>
+          <div class="chip-row" id="food-tags" role="group" aria-label="음식·술 종류"></div>
+          <label class="wish-note">
+            <span class="sr-only">먹고 싶은 것 메모</span>
+            <input
+              type="text"
+              id="food-note"
+              maxlength="100"
+              placeholder="예: 삼겹살에 소주, 아니면 파스타…"
+            />
+          </label>
+        </div>
+
+        <div class="wish-block">
+          <h3>이번주에 하고 싶은것</h3>
+          <div class="chip-row" id="wish-tags" role="group" aria-label="하고 싶은 것"></div>
+          <label class="wish-note">
+            <span class="sr-only">하고 싶은 것 메모</span>
+            <input
+              type="text"
+              id="wish-note"
+              maxlength="100"
+              placeholder="예: 조용한 카페에서 수다…"
+            />
+          </label>
+        </div>
+
+        <button type="button" class="primary-btn" id="weekly-save">이번 주 저장</button>
+        <div class="weekly-partner" id="weekly-partner"></div>
       </section>
 
       <section class="panel daily-panel">

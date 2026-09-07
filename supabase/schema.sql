@@ -41,6 +41,22 @@ alter table attendance enable row level security;
 alter table workouts enable row level security;
 alter table fatigue enable row level security;
 
+create table if not exists weekly_wishes (
+  id text primary key,
+  user_id text not null check (user_id in ('seongbae', 'lovely')),
+  week_start date not null,
+  food_note text default '',
+  food_tags text[] default '{}',
+  wish_note text default '',
+  wish_tags text[] default '{}',
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists weekly_wishes_week_idx on weekly_wishes (week_start);
+create index if not exists weekly_wishes_user_week_idx on weekly_wishes (user_id, week_start);
+
+alter table weekly_wishes enable row level security;
+
 -- 둘만 쓰는 비공개 앱용: anon 키로 읽기/쓰기 허용
 -- (공개 URL을 아무에게나 공유하지 마세요)
 drop policy if exists "attendance_all" on attendance;
@@ -57,6 +73,12 @@ create policy "workouts_all" on workouts
 
 drop policy if exists "fatigue_all" on fatigue;
 create policy "fatigue_all" on fatigue
+  for all
+  using (true)
+  with check (true);
+
+drop policy if exists "weekly_wishes_all" on weekly_wishes;
+create policy "weekly_wishes_all" on weekly_wishes
   for all
   using (true)
   with check (true);
@@ -84,5 +106,12 @@ begin
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'fatigue'
   ) then
     alter publication supabase_realtime add table fatigue;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'weekly_wishes'
+  ) then
+    alter publication supabase_realtime add table weekly_wishes;
   end if;
 end $$;
