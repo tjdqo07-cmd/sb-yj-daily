@@ -1,0 +1,7 @@
+# Dependencies
+node_modules/
+
+# Local secrets — keep your real keys out of public repos if possible
+# (anon key is designed for client use, but still don't paste service_role)
+.env
+.env.local

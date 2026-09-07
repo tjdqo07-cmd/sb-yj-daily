@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SB &amp; YJ Daily 기록</title>
+    <meta name="description" content="SB와 YJ의 주간 출퇴근 · 운동 · 피로도 기록 공유" />
+    <meta name="theme-color" content="#e8f1f6" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-user="seongbae">
+    <div class="atmosphere" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <p class="brand-mark">SB &amp; YJ</p>
+        <p class="brand-sub">Daily 기록</p>
+      </div>
+      <div class="topbar-right">
+        <div class="sync-pill" id="sync-status" data-state="local">이 기기만 저장</div>
+        <div class="who-am-i" role="group" aria-label="내 프로필 선택">
+          <button type="button" class="who-btn" data-who="seongbae" aria-pressed="true">
+            SB
+          </button>
+          <button type="button" class="who-btn" data-who="lovely" aria-pressed="false">
+            YJ
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel setup-panel" id="setup-panel" hidden>
+        <div class="panel-head">
+          <h2>어디서든 같이 쓰려면</h2>
+          <p>
+            지금은 이 브라우저에만 저장돼요. Supabase 키를 넣고 사이트를 배포하면 YJ가
+            폰·PC 어디서든 같은 기록을 볼 수 있어요.
+          </p>
+        </div>
+        <ol class="setup-steps">
+          <li>
+            <a href="https://supabase.com" target="_blank" rel="noreferrer">supabase.com</a>에서
+            무료 프로젝트 생성
+          </li>
+          <li>SQL Editor에서 <code>supabase/schema.sql</code> 실행</li>
+          <li>
+            Project Settings → API의 URL / anon key를 <code>config.js</code>에 입력
+          </li>
+          <li>Netlify · Vercel · GitHub Pages 등으로 폴더 배포 후 URL 공유</li>
+        </ol>
+      </section>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <h1 class="week-heading">
+            <span id="week-title">이번 주</span>
+            <span class="today-chip" id="today-chip"></span>
+          </h1>
+          <p class="hero-lead">
+            출근 퇴근 시각과 운동을 가볍게 남기고, 서로 더 멋지고 이쁜모습으로 만나요.
+          </p>
+          <div class="week-nav">
+            <button type="button" class="ghost-btn" id="prev-week" aria-label="이전 주">
+              ← 이전
+            </button>
+            <button type="button" class="ghost-btn" id="this-week">오늘 주로</button>
+            <button type="button" class="ghost-btn" id="next-week" aria-label="다음 주">
+              다음 →
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel fatigue-panel" id="fatigue-panel">
+        <div class="panel-head">
+          <h2>오늘 아침에 느껴지는 당신의 피로도는?</h2>
+          <p>숫자를 고른 뒤 저장하면, 오늘의 얼굴과 휴식 팁이 나타나요.</p>
+        </div>
+
+        <div class="fatigue-pick" id="fatigue-pick">
+          <div class="fatigue-faces" id="fatigue-faces" role="radiogroup" aria-label="피로도 선택"></div>
+          <button type="button" class="primary-btn" id="fatigue-save">저장하기</button>
+        </div>
+
+        <div class="fatigue-result" id="fatigue-result" hidden>
+          <span class="fatigue-emoji" id="fatigue-emoji">😐</span>
+          <div>
+            <p class="fatigue-tip-title" id="fatigue-tip-title"></p>
+            <p class="fatigue-tip-body" id="fatigue-tip-body"></p>
+          </div>
+          <button type="button" class="ghost-btn" id="fatigue-edit">다시 선택</button>
+        </div>
+
+        <div class="fatigue-partner" id="fatigue-partner"></div>
+      </section>
+
+      <section class="panel daily-panel">
+        <div class="panel-head">
+          <h2>주간 출퇴근</h2>
+          <p>월~금 출근·퇴근을 5분 단위로 직접 정해요.</p>
+        </div>
+        <div class="attendance-grid" id="attendance-grid"></div>
+
+        <div class="workout-block">
+          <div class="panel-head compact">
+            <h2>운동</h2>
+            <p>짧게 남기고 바로 공유해요.</p>
+          </div>
+
+          <form class="workout-form" id="workout-form">
+            <label>
+              <span>날짜</span>
+              <input type="date" id="workout-date" required />
+            </label>
+            <label>
+              <span>종류</span>
+              <select id="workout-type" required>
+                <option value="헬스">헬스</option>
+                <option value="러닝">러닝</option>
+                <option value="산책">산책</option>
+                <option value="수영">수영</option>
+                <option value="요가">요가</option>
+                <option value="홈트">홈트</option>
+                <option value="기타">기타</option>
+              </select>
+            </label>
+            <label>
+              <span>분</span>
+              <input type="number" id="workout-minutes" min="1" max="600" placeholder="45" />
+            </label>
+            <label class="grow">
+              <span>메모</span>
+              <input type="text" id="workout-note" maxlength="80" placeholder="하체, 스쿼트…" />
+            </label>
+            <button type="submit" class="primary-btn">기록</button>
+          </form>
+
+          <div class="workout-boards" id="workout-boards"></div>
+        </div>
+      </section>
+
+      <section class="panel share-panel">
+        <div class="panel-head">
+          <h2>함께 보기</h2>
+          <p>이번 주 둘의 출석·운동 요약이에요.</p>
+        </div>
+        <div class="share-cards" id="share-summary"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p id="footer-note">SB × YJ</p>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
